@@ -3,3 +3,4 @@ streamlit-extras
 streamlit-option-menu
 pymongo
 streamlit-pdf
+streamlit-pdf-viewer
