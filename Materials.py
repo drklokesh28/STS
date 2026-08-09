@@ -106,7 +106,7 @@ def main_layout():
                                         file_name=selected_material,
                                         mime="application/pdf",
                                         use_container_width=True,
-                                        disable=True
+                                        disabled=True
                                     )
                                     
                             except Exception as e:
@@ -121,7 +121,8 @@ def main_layout():
                                             data=f.read(),
                                             file_name=selected_material,
                                             mime="application/pdf",
-                                            use_container_width=True
+                                            use_container_width=True,
+                                            disabled=True
                                         )
                                 except Exception as download_error:
                                     st.error(f"❌ Error downloading file: {str(download_error)}")
