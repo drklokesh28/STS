@@ -469,7 +469,7 @@ def view_materials():
                                                             with open(full_path, 'rb') as f:
                                                                 pdf_bytes = f.read()
                                                                 with col2:
-                                                                    pdf_viewer(input=pdf_bytes, width=700, height=600)
+                                                                    pdf_viewer(input=pdf_bytes)
                                                         except Exception as e:
                                                             col2.error(f"Error displaying PDF: {str(e)}")
                                                             # Fallback: Provide download button only
