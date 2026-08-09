@@ -2,3 +2,4 @@ streamlit
 streamlit-extras
 streamlit-option-menu
 pymongo
+streamlit-pdf
