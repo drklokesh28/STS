@@ -5,6 +5,11 @@ from courses import courses_ui_main
 from materials import main1
 from tasks import main2
 
+if "client" not in st.session_state:
+    st.session_state["client"] = MongoClient(st.secrets["DataBase"]["client"])
+    st.session_state["db"] = st.session_state["client"]["courses_db"]
+    st.session_state["collection"] = st.session_state["db"]["course_collection"]
+
 def main():
     # Optional: Configure the page layout
     st.set_page_config(page_title="Dashboard", layout="wide")
