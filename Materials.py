@@ -1,26 +1,10 @@
 import streamlit as st
 import os
-from streamlit_pdf_viewer import pdf_viewer
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def read_local_pdf_bytes(file_path: str) -> bytes:
-    """
-    Fast-reads local PDF bytes and caches them in memory.
-    Prevents repeated disk reading delays during app reruns or tab switches.
-    """
-    try:
-        if os.path.exists(file_path):
-            with open(file_path, "rb") as f:
-                return f.read()
-    except Exception as e:
-        st.error(f"❌ Error reading file: {str(e)}")
-    return None
-
 
 def main_layout():
     """
     Main layout for the Study/Materials section.
-    Displays local PDF materials organized by category using st.session_state['materials'].
+    Displays local PDF materials organized by category directly using st.pdf.
     """
     st.subheader("📚 Study Materials", divider="orange", text_alignment="center")
     
@@ -30,8 +14,8 @@ def main_layout():
         st.info("ℹ️ No materials available for this course")
         return
     
-    # Extract unique categories from session state
-    categories = sorted(list(set([material["category"].strip() for material in materials_data if material.get("category")])))
+    # Extract unique categories cleanly from session state
+    categories = sorted(list(set([m["category"].strip() for m in materials_data if m.get("category")])))
     
     if not categories:
         st.info("ℹ️ No categories found in materials")
@@ -70,14 +54,10 @@ def main_layout():
                     root_path = material.get("root_path", "").strip()
                     
                     for material_name in materials_list:
-                        # Construct and normalize disk path cleanly
+                        # Construct normalized local path
                         full_path = os.path.normpath(os.path.join(root_path, material_name))
                         
-                        material_map[material_name] = {
-                            "root_path": root_path,
-                            "material_name": material_name,
-                            "full_path": full_path
-                        }
+                        material_map[material_name] = full_path
                         material_options.append(material_name)
                 
                 if material_options:
@@ -88,39 +68,28 @@ def main_layout():
                     )
                     
                     if selected_material and selected_material in material_map:
-                        material_info = material_map[selected_material]
-                        full_path = material_info["full_path"]
+                        full_path = material_map[selected_material]
                         
                         # Display path info
                         st.caption(f"📂 **Path:** `{full_path}`")
                         
-                        # Check if local file exists
+                        # Verify local file exists
                         if os.path.exists(full_path):
-                            # Load PDF via fast memory cache
-                            pdf_bytes = read_local_pdf_bytes(full_path)
+                            # High-speed native PDF rendering
+                            st.pdf(full_path, height=600)
                             
-                            if pdf_bytes:
-                                st.info("📄 PDF Viewer")
-                                
-                                # Fast render PDF
-                                pdf_viewer(
-                                    input=pdf_bytes,
-                                    key=f"pdf_viewer_{hash(selected_material)}"
-                                )
-                                
-                                # Download PDF Button
+                            # Fast download option via memory stream
+                            with open(full_path, "rb") as f:
                                 st.download_button(
                                     label="📥 Download PDF",
-                                    data=pdf_bytes,
+                                    data=f.read(),
                                     file_name=selected_material,
                                     mime="application/pdf",
                                     use_container_width=True
                                 )
-                            else:
-                                st.error("❌ Could not read PDF bytes from specified path.")
                         else:
                             st.error(f"❌ File not found at: `{full_path}`")
-                            st.info("💡 Tip: Verify that the local folder and PDF file name match your database record exactly.")
+                            st.info("💡 Tip: Ensure the file path and PDF file name match your database entry.")
                 else:
                     st.info("ℹ️ No materials found in this category")
             else:
