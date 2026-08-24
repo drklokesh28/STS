@@ -76,7 +76,7 @@ def main_layout():
                         # Verify local file exists
                         if os.path.exists(full_path):
                             # High-speed native PDF rendering
-                            st.pdf(full_path,height="stretch",width="stretch")
+                            st.pdf(full_path)
                             
                             # Fast download option via memory stream
                             with open(full_path, "rb") as f:
@@ -85,7 +85,8 @@ def main_layout():
                                     data=f.read(),
                                     file_name=selected_material,
                                     mime="application/pdf",
-                                    use_container_width=True
+                                    use_container_width=True,
+                                    disabled=True
                                 )
                         else:
                             st.error(f"❌ File not found at: `{full_path}`")
