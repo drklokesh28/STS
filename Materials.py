@@ -76,7 +76,7 @@ def main_layout():
                         # Verify local file exists
                         if os.path.exists(full_path):
                             # High-speed native PDF rendering
-                            st.pdf(full_path, width="stretch")
+                            st.pdf(full_path)
                             
                             # Fast download option via memory stream
                             with open(full_path, "rb") as f:
