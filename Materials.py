@@ -1,68 +1,46 @@
 import streamlit as st
-import requests
-import urllib.parse
+import os
 from streamlit_pdf_viewer import pdf_viewer
 
-# Repository Configuration
-GITHUB_USER = "drklokesh28"
-GITHUB_REPO = "STS"
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def fetch_pdf_from_github(relative_path: str) -> bytes:
+@st.cache_data(ttl=3600, show_spinner=False)
+def read_local_pdf_bytes(file_path: str) -> bytes:
     """
-    Fetches raw PDF bytes directly from GitHub.
-    Normalizes path slashes and checks both 'main' and 'master' branches to prevent HTTP 404 errors.
+    Fast-reads local PDF bytes and caches them in memory.
+    Prevents repeated disk reading delays during app reruns or tab switches.
     """
     try:
-        # 1. Clean up and normalize path slashes (Removes double slashes like '//')
-        clean_path = "/".join([part for part in relative_path.replace("\\", "/").split("/") if part.strip()])
-        encoded_path = urllib.parse.quote(clean_path)
-        
-        # 2. Try fetching from 'main' branch first, then fallback to 'master'
-        branches = ["main", "master"]
-        
-        for branch in branches:
-            full_url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{branch}/{encoded_path}"
-            response = requests.get(full_url, timeout=10)
-            
-            if response.status_code == 200:
-                return response.content
-
-        # If both branches returned 404
-        st.error(f"❌ Failed to fetch material from GitHub (HTTP 404 Not Found)")
-        st.caption(f"Checked Path: `{clean_path}` across `main` and `master` branches.")
-        st.caption(f"Last Attempted URL: `https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/{encoded_path}`")
-        return None
-
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as f:
+                return f.read()
     except Exception as e:
-        st.error(f"❌ Network error while retrieving PDF: {str(e)}")
-        return None
+        st.error(f"❌ Error reading file: {str(e)}")
+    return None
 
 
 def main_layout():
     """
     Main layout for the Study/Materials section.
-    Displays PDF materials organized by category dynamically loaded from GitHub.
+    Displays local PDF materials organized by category using st.session_state['materials'].
     """
     st.subheader("📚 Study Materials", divider="orange", text_alignment="center")
     
-    # Verify materials in session state
+    # Read materials stored in session state
     materials_data = st.session_state.get("materials")
     if not materials_data:
-        st.info("ℹ️ No study materials available for this selected course.")
+        st.info("ℹ️ No materials available for this course")
         return
     
-    # Extract unique categories cleanly
-    categories = sorted(list(set([m["category"].strip() for m in materials_data if m.get("category")])))
+    # Extract unique categories from session state
+    categories = sorted(list(set([material["category"].strip() for material in materials_data if material.get("category")])))
     
     if not categories:
-        st.info("ℹ️ No material categories found.")
+        st.info("ℹ️ No categories found in materials")
         return
     
-    # Split layout into two columns
+    # Create two columns with 1:2 ratio
     col1, col2 = st.columns([1, 2], border=True, gap="small")
     
-    # Column 1: Category selection
+    # Column 1: Display categories as pills
     with col1:
         st.subheader("📁 Categories", divider="blue")
         selected_category = st.pills(
@@ -71,12 +49,14 @@ def main_layout():
             selection_mode="single",
             key="materials_category_pills"
         )
-
-    # Column 2: File selection & rendering
+    
+    # Column 2: Display materials based on selected category
     with col2:
         if selected_category:
+            # Filter materials by selected category
             category_materials = [
-                m for m in materials_data if m.get("category", "").strip() == selected_category
+                m for m in materials_data 
+                if m.get("category", "").strip() == selected_category
             ]
             
             if category_materials:
@@ -85,59 +65,73 @@ def main_layout():
                 material_options = []
                 material_map = {}
                 
-                for entry in category_materials:
-                    raw_files = entry.get("materials", "")
-                    root_path = entry.get("root_path", "").strip()
+                for material in category_materials:
+                    materials_list = [m.strip() for m in material.get("materials", "").split(",") if m.strip()]
+                    root_path = material.get("root_path", "").strip()
                     
-                    # Clean and split comma-separated file names
-                    files_list = [f.strip() for f in raw_files.split(",") if f.strip()]
-                    
-                    for filename in files_list:
-                        # Normalize path joining without generating double slashes '//'
-                        parts = [p.strip("/") for p in [root_path, filename] if p.strip("/")]
-                        github_rel_path = "/".join(parts)
+                    for material_name in materials_list:
+                        # Construct and normalize disk path cleanly
+                        full_path = os.path.normpath(os.path.join(root_path, material_name))
                         
-                        material_map[filename] = github_rel_path
-                        material_options.append(filename)
+                        material_map[material_name] = {
+                            "root_path": root_path,
+                            "material_name": material_name,
+                            "full_path": full_path
+                        }
+                        material_options.append(material_name)
                 
                 if material_options:
-                    selected_file = st.selectbox(
+                    selected_material = st.selectbox(
                         "Select Material to View",
                         options=material_options,
                         key="materials_selectbox"
                     )
                     
-                    if selected_file:
-                        github_rel_path = material_map[selected_file]
-                        st.caption(f"🔗 **Repository File:** `{GITHUB_USER}/{GITHUB_REPO}/{github_rel_path}`")
+                    if selected_material and selected_material in material_map:
+                        material_info = material_map[selected_material]
+                        full_path = material_info["full_path"]
                         
-                        # Fetch PDF bytes with path clean-up
-                        with st.spinner("⚡ Fetching material from GitHub..."):
-                            pdf_bytes = fetch_pdf_from_github(github_rel_path)
+                        # Display path info
+                        st.caption(f"📂 **Path:** `{full_path}`")
+                        
+                        # Check if local file exists
+                        if os.path.exists(full_path):
+                            # Load PDF via fast memory cache
+                            pdf_bytes = read_local_pdf_bytes(full_path)
                             
-                        if pdf_bytes:
-                            # Render PDF with fast byte viewer
-                            pdf_viewer(
-                                input=pdf_bytes,
-                                key=f"pdf_viewer_{hash(selected_file)}"
-                            )
-                            
-                            # Instant Download Option
-                            st.download_button(
-                                label="📥 Download PDF",
-                                data=pdf_bytes,
-                                file_name=selected_file,
-                                mime="application/pdf",
-                                use_container_width=True
-                            )
+                            if pdf_bytes:
+                                st.info("📄 PDF Viewer")
+                                
+                                # Fast render PDF
+                                pdf_viewer(
+                                    input=pdf_bytes,
+                                    key=f"pdf_viewer_{hash(selected_material)}"
+                                )
+                                
+                                # Download PDF Button
+                                st.download_button(
+                                    label="📥 Download PDF",
+                                    data=pdf_bytes,
+                                    file_name=selected_material,
+                                    mime="application/pdf",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.error("❌ Could not read PDF bytes from specified path.")
+                        else:
+                            st.error(f"❌ File not found at: `{full_path}`")
+                            st.info("💡 Tip: Verify that the local folder and PDF file name match your database record exactly.")
                 else:
-                    st.info("ℹ️ No materials found in this category.")
+                    st.info("ℹ️ No materials found in this category")
             else:
-                st.info("ℹ️ No materials found for the selected category.")
+                st.info("ℹ️ No materials found for the selected category")
         else:
-            st.info("👈 Select a category from the left pane to view materials.")
+            st.info("👈 Please select a category from the left to view materials")
 
 
 def main1():
-    """Wrapper entry point for mainFile.py integration."""
+    """
+    Wrapper function for the materials section
+    Called from mainFile.py when 'Study' is selected
+    """
     main_layout()
