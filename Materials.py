@@ -3,32 +3,37 @@ import requests
 import urllib.parse
 from streamlit_pdf_viewer import pdf_viewer
 
-# Repository configuration for GitHub Raw fetching
+# Repository Configuration
 GITHUB_USER = "drklokesh28"
 GITHUB_REPO = "STS"
-GITHUB_BRANCH = "main"
-
-BASE_RAW_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{GITHUB_BRANCH}/"
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def fetch_pdf_from_github(file_path: str) -> bytes:
+def fetch_pdf_from_github(relative_path: str) -> bytes:
     """
-    Fetches raw PDF bytes directly from the drklokesh28/STS GitHub repository.
-    Caches the binary data locally to ensure zero-lag repeat rendering.
+    Fetches raw PDF bytes directly from GitHub.
+    Normalizes path slashes and checks both 'main' and 'master' branches to prevent HTTP 404 errors.
     """
     try:
-        # Sanitize path and handle spacing or special characters
-        clean_path = file_path.strip().lstrip("/")
+        # 1. Clean up and normalize path slashes (Removes double slashes like '//')
+        clean_path = "/".join([part for part in relative_path.replace("\\", "/").split("/") if part.strip()])
         encoded_path = urllib.parse.quote(clean_path)
-        full_url = f"{BASE_RAW_URL}{encoded_path}"
         
-        response = requests.get(full_url, timeout=10)
-        if response.status_code == 200:
-            return response.content
-        else:
-            st.error(f"❌ Failed to fetch material from GitHub (HTTP {response.status_code})")
-            st.caption(f"Target URL: `{full_url}`")
-            return None
+        # 2. Try fetching from 'main' branch first, then fallback to 'master'
+        branches = ["main", "master"]
+        
+        for branch in branches:
+            full_url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{branch}/{encoded_path}"
+            response = requests.get(full_url, timeout=10)
+            
+            if response.status_code == 200:
+                return response.content
+
+        # If both branches returned 404
+        st.error(f"❌ Failed to fetch material from GitHub (HTTP 404 Not Found)")
+        st.caption(f"Checked Path: `{clean_path}` across `main` and `master` branches.")
+        st.caption(f"Last Attempted URL: `https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/{encoded_path}`")
+        return None
+
     except Exception as e:
         st.error(f"❌ Network error while retrieving PDF: {str(e)}")
         return None
@@ -47,14 +52,14 @@ def main_layout():
         st.info("ℹ️ No study materials available for this selected course.")
         return
     
-    # Extract categories
-    categories = sorted(list(set([material["category"] for material in materials_data if "category" in material])))
+    # Extract unique categories cleanly
+    categories = sorted(list(set([m["category"].strip() for m in materials_data if m.get("category")])))
     
     if not categories:
         st.info("ℹ️ No material categories found.")
         return
     
-    # Split interface layout
+    # Split layout into two columns
     col1, col2 = st.columns([1, 2], border=True, gap="small")
     
     # Column 1: Category selection
@@ -71,7 +76,7 @@ def main_layout():
     with col2:
         if selected_category:
             category_materials = [
-                m for m in materials_data if m.get("category") == selected_category
+                m for m in materials_data if m.get("category", "").strip() == selected_category
             ]
             
             if category_materials:
@@ -84,17 +89,15 @@ def main_layout():
                     raw_files = entry.get("materials", "")
                     root_path = entry.get("root_path", "").strip()
                     
-                    # Split comma-separated file entries
+                    # Clean and split comma-separated file names
                     files_list = [f.strip() for f in raw_files.split(",") if f.strip()]
                     
                     for filename in files_list:
-                        # Build relative path inside the repo
-                        if root_path:
-                            rel_path = f"{root_path}/{filename}".replace("\\", "/")
-                        else:
-                            rel_path = filename
-                            
-                        material_map[filename] = rel_path
+                        # Normalize path joining without generating double slashes '//'
+                        parts = [p.strip("/") for p in [root_path, filename] if p.strip("/")]
+                        github_rel_path = "/".join(parts)
+                        
+                        material_map[filename] = github_rel_path
                         material_options.append(filename)
                 
                 if material_options:
@@ -108,12 +111,12 @@ def main_layout():
                         github_rel_path = material_map[selected_file]
                         st.caption(f"🔗 **Repository File:** `{GITHUB_USER}/{GITHUB_REPO}/{github_rel_path}`")
                         
-                        # High-speed cached fetch
+                        # Fetch PDF bytes with path clean-up
                         with st.spinner("⚡ Fetching material from GitHub..."):
                             pdf_bytes = fetch_pdf_from_github(github_rel_path)
                             
                         if pdf_bytes:
-                            # Render PDF with instant byte viewer
+                            # Render PDF with fast byte viewer
                             pdf_viewer(
                                 input=pdf_bytes,
                                 key=f"pdf_viewer_{hash(selected_file)}"
@@ -137,8 +140,4 @@ def main_layout():
 
 def main1():
     """Wrapper entry point for mainFile.py integration."""
-    main_layout()
-
-
-if __name__ == "__main__":
     main_layout()
