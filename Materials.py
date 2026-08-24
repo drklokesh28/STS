@@ -1,77 +1,144 @@
 import streamlit as st
 import requests
+import urllib.parse
 from streamlit_pdf_viewer import pdf_viewer
 
-# Remote base path configuration for fast GitHub raw fetching
-GITHUB_RAW_BASE = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO/main/"
+# Repository configuration for GitHub Raw fetching
+GITHUB_USER = "drklokesh28"
+GITHUB_REPO = "STS"
+GITHUB_BRANCH = "main"
+
+BASE_RAW_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{GITHUB_BRANCH}/"
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def fetch_pdf_bytes_from_github(file_url: str) -> bytes:
-    """Fetch and cache raw PDF bytes directly from GitHub."""
+def fetch_pdf_from_github(file_path: str) -> bytes:
+    """
+    Fetches raw PDF bytes directly from the drklokesh28/STS GitHub repository.
+    Caches the binary data locally to ensure zero-lag repeat rendering.
+    """
     try:
-        res = requests.get(file_url, timeout=10)
-        res.raise_for_status()
-        return res.content
+        # Sanitize path and handle spacing or special characters
+        clean_path = file_path.strip().lstrip("/")
+        encoded_path = urllib.parse.quote(clean_path)
+        full_url = f"{BASE_RAW_URL}{encoded_path}"
+        
+        response = requests.get(full_url, timeout=10)
+        if response.status_code == 200:
+            return response.content
+        else:
+            st.error(f"❌ Failed to fetch material from GitHub (HTTP {response.status_code})")
+            st.caption(f"Target URL: `{full_url}`")
+            return None
     except Exception as e:
-        st.error(f"Failed to fetch material: {e}")
+        st.error(f"❌ Network error while retrieving PDF: {str(e)}")
         return None
 
+
 def main_layout():
+    """
+    Main layout for the Study/Materials section.
+    Displays PDF materials organized by category dynamically loaded from GitHub.
+    """
     st.subheader("📚 Study Materials", divider="orange", text_alignment="center")
     
+    # Verify materials in session state
     materials_data = st.session_state.get("materials")
     if not materials_data:
-        st.info("ℹ️ No materials available for this course")
+        st.info("ℹ️ No study materials available for this selected course.")
         return
     
-    categories = sorted(list({m["category"] for m in materials_data if "category" in m}))
+    # Extract categories
+    categories = sorted(list(set([material["category"] for material in materials_data if "category" in material])))
+    
     if not categories:
-        st.info("ℹ️ No categories found")
+        st.info("ℹ️ No material categories found.")
         return
-
+    
+    # Split interface layout
     col1, col2 = st.columns([1, 2], border=True, gap="small")
     
+    # Column 1: Category selection
     with col1:
         st.subheader("📁 Categories", divider="blue")
-        selected_category = st.pills("Select Category", options=categories, key="materials_category_pills")
+        selected_category = st.pills(
+            "Select Category",
+            options=categories,
+            selection_mode="single",
+            key="materials_category_pills"
+        )
 
+    # Column 2: File selection & rendering
     with col2:
         if selected_category:
-            category_materials = [m for m in materials_data if m.get("category") == selected_category]
+            category_materials = [
+                m for m in materials_data if m.get("category") == selected_category
+            ]
             
-            material_map = {}
-            for mat in category_materials:
-                m_list = [item.strip() for item in mat.get("materials", "").split(",") if item.strip()]
-                root_path = mat.get("root_path", "")
+            if category_materials:
+                st.subheader(f"📄 {selected_category} Materials", divider="blue")
                 
-                for m_name in m_list:
-                    # Construct GitHub raw target URL
-                    clean_root = root_path.strip("/")
-                    full_github_url = f"{GITHUB_RAW_BASE}{clean_root}/{m_name}" if clean_root else f"{GITHUB_RAW_BASE}{m_name}"
-                    material_map[m_name] = full_github_url
-
-            if material_map:
-                selected_material = st.selectbox("Select Material to View", options=list(material_map.keys()))
+                material_options = []
+                material_map = {}
                 
-                if selected_material:
-                    target_url = material_map[selected_material]
+                for entry in category_materials:
+                    raw_files = entry.get("materials", "")
+                    root_path = entry.get("root_path", "").strip()
                     
-                    with st.spinner("⚡ Fetching material..."):
-                        pdf_bytes = fetch_pdf_bytes_from_github(target_url)
+                    # Split comma-separated file entries
+                    files_list = [f.strip() for f in raw_files.split(",") if f.strip()]
                     
-                    if pdf_bytes:
-                        pdf_viewer(input=pdf_bytes, key=f"pdf_v_{hash(selected_material)}")
-                        st.download_button(
-                            label="📥 Download PDF",
-                            data=pdf_bytes,
-                            file_name=selected_material,
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
+                    for filename in files_list:
+                        # Build relative path inside the repo
+                        if root_path:
+                            rel_path = f"{root_path}/{filename}".replace("\\", "/")
+                        else:
+                            rel_path = filename
+                            
+                        material_map[filename] = rel_path
+                        material_options.append(filename)
+                
+                if material_options:
+                    selected_file = st.selectbox(
+                        "Select Material to View",
+                        options=material_options,
+                        key="materials_selectbox"
+                    )
+                    
+                    if selected_file:
+                        github_rel_path = material_map[selected_file]
+                        st.caption(f"🔗 **Repository File:** `{GITHUB_USER}/{GITHUB_REPO}/{github_rel_path}`")
+                        
+                        # High-speed cached fetch
+                        with st.spinner("⚡ Fetching material from GitHub..."):
+                            pdf_bytes = fetch_pdf_from_github(github_rel_path)
+                            
+                        if pdf_bytes:
+                            # Render PDF with instant byte viewer
+                            pdf_viewer(
+                                input=pdf_bytes,
+                                key=f"pdf_viewer_{hash(selected_file)}"
+                            )
+                            
+                            # Instant Download Option
+                            st.download_button(
+                                label="📥 Download PDF",
+                                data=pdf_bytes,
+                                file_name=selected_file,
+                                mime="application/pdf",
+                                use_container_width=True
+                            )
+                else:
+                    st.info("ℹ️ No materials found in this category.")
             else:
-                st.info("ℹ️ No materials found in this category")
+                st.info("ℹ️ No materials found for the selected category.")
         else:
-            st.info("👈 Please select a category to view materials")
+            st.info("👈 Select a category from the left pane to view materials.")
+
 
 def main1():
+    """Wrapper entry point for mainFile.py integration."""
+    main_layout()
+
+
+if __name__ == "__main__":
     main_layout()
