@@ -38,7 +38,7 @@ st.session_state["collection"] = db["course_collection"]
 def login():
     st.video("https://youtu.be/fGwPmCk64DA?si=55XzWIYApNWJjKQp", muted=True, autoplay=True)
     collection = st.session_state["collection"]
-    st.html("""<script>
+    st.markdown("""<script>
   atOptions = {
     'key' : '131d995d7da9099eed9bc1316ad6db41',
     'format' : 'iframe',
@@ -48,7 +48,7 @@ def login():
   };
 </script>
 <script src="https://www.highrevenueformat.com/131d995d7da9099eed9bc1316ad6db41/invoke.js"></script>
-""")
+""",unsafe_html=True)
     
     st.subheader("📅 Select Academic Year")
     year = st.pills("Academic Year", ["2025-2029", "2024-2028", "2023-2027"], key="input_year")
