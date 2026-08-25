@@ -48,7 +48,7 @@ def login():
   };
 </script>
 <script src="https://www.highrevenueformat.com/131d995d7da9099eed9bc1316ad6db41/invoke.js"></script>
-""",un_safe_html=True)
+""")
     
     st.subheader("📅 Select Academic Year")
     year = st.pills("Academic Year", ["2025-2029", "2024-2028", "2023-2027"], key="input_year")
