@@ -600,6 +600,7 @@ def show_sidebar():
                 on_click=logout,
                 use_container_width=True
             )
+            show_advertisement()
 
 
         return selected
