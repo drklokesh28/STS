@@ -1,5 +1,7 @@
 import streamlit as st
 import os
+import streamlit.components.v1 as components
+from advertisements import show_advertisement
 
 def main_layout():
     """
@@ -33,6 +35,7 @@ def main_layout():
             selection_mode="single",
             key="materials_category_pills"
         )
+        show_advertisement()
     
     # Column 2: Display materials based on selected category
     with col2:
@@ -88,6 +91,7 @@ def main_layout():
                                     use_container_width=True,
                                     disabled=True
                                 )
+                            show_advertisement()
                         else:
                             st.error(f"❌ File not found at: `{full_path}`")
                             st.info("💡 Tip: Ensure the file path and PDF file name match your database entry.")
@@ -105,3 +109,4 @@ def main1():
     Called from mainFile.py when 'Study' is selected
     """
     main_layout()
+    show_advertisement()
