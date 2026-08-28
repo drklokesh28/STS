@@ -2,9 +2,11 @@ import streamlit as st
 from datetime import datetime
 import pandas as pd
 import plotly.express as px
+from advertisements import show_advertisement
 
 def main_layout():
     st.subheader("📊 My Performance Dashboard", divider="orange", text_alignment="center")
+    show_advertisement()
     
     if not st.session_state.get("roll_number"):
         st.warning("⚠️ Please log in to view performance data")
