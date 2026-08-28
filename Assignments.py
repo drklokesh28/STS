@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime
 import pandas as pd
+from advertisements import show_advertisement
 
 def main_layout():
     st.subheader("📝 My Assignments", divider="orange", text_alignment="center")
@@ -45,8 +46,10 @@ def main_layout():
                             st.session_state["assignment_answers"] = {}
                             st.session_state["assignment_start_time"] = None
                             st.rerun()
+            show_advertisement()
 
     with col2:
+        show_advertisement()
         if st.session_state.get("show_assignment") and "attempting_task" in st.session_state:
             attempt_data = st.session_state["attempting_task"]
             task = next((t for t in st.session_state.get("course_data", {}).get("tasks", []) 
