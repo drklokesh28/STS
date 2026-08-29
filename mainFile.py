@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from streamlit_option_menu import option_menu
@@ -10,7 +9,8 @@ from Materials import main1 as study_materials
 from Assignments import main2 as assignment_materials
 from save_progress import main3 as save_progress
 from Performance import main4 as performance_dashboard
-from advertisements import *
+
+import advertisements as ads
 
 st.set_page_config(page_title="Student Learning Platform", page_icon="📚", layout="wide", initial_sidebar_state="expanded")
 
@@ -66,19 +66,47 @@ def login():
     department = st.segmented_control("Department", ["AI&DS", "DS", "AI", "CSE"], key="input_dept")
 
     if year and department:
-        subjects_cursor = collection.find({"academicYear": year, "department": department}, {"_id": 0, "courseName": 1})
-        subjects = sorted(list(set(document["courseName"] for document in subjects_cursor if "courseName" in document)))
+        subjects_cursor = collection.find(
+            {"academicYear": year, "department": department},
+            {"_id": 0, "courseName": 1}
+        )
+
+        subjects = sorted(
+            list(
+                set(
+                    document["courseName"]
+                    for document in subjects_cursor
+                    if "courseName" in document
+                )
+            )
+        )
 
         if subjects:
             st.subheader("📚 Select Subject")
             subject = st.pills("Subject", subjects, key="input_subject")
 
             if subject:
-                course_students = collection.find_one({"academicYear": year, "department": department, "courseName": subject}, {"_id": 0, "enrolledStudents.student_roll_number": 1, "enrolledStudents.student_name": 1})
+                course_students = collection.find_one(
+                    {
+                        "academicYear": year,
+                        "department": department,
+                        "courseName": subject
+                    },
+                    {
+                        "_id": 0,
+                        "enrolledStudents.student_roll_number": 1,
+                        "enrolledStudents.student_name": 1
+                    }
+                )
 
                 if course_students and "enrolledStudents" in course_students:
                     enrolled = course_students["enrolledStudents"]
-                    roll_options = [student["student_roll_number"] for student in enrolled if "student_roll_number" in student]
+
+                    roll_options = [
+                        student["student_roll_number"]
+                        for student in enrolled
+                        if "student_roll_number" in student
+                    ]
 
                     if roll_options:
                         st.subheader("👤 Select Student & Password")
@@ -92,10 +120,29 @@ def login():
                                 if not password:
                                     st.warning("⚠️ Please enter your password.")
                                 else:
-                                    course_data = collection.find_one({"academicYear": year, "department": department, "courseName": subject, "enrolledStudents": {"$elemMatch": {"student_roll_number": roll_number, "student_password": password}}})
+                                    course_data = collection.find_one(
+                                        {
+                                            "academicYear": year,
+                                            "department": department,
+                                            "courseName": subject,
+                                            "enrolledStudents": {
+                                                "$elemMatch": {
+                                                    "student_roll_number": roll_number,
+                                                    "student_password": password
+                                                }
+                                            }
+                                        }
+                                    )
 
                                     if course_data:
-                                        student_info = next((student for student in course_data.get("enrolledStudents", []) if student.get("student_roll_number") == roll_number), {})
+                                        student_info = next(
+                                            (
+                                                student
+                                                for student in course_data.get("enrolledStudents", [])
+                                                if student.get("student_roll_number") == roll_number
+                                            ),
+                                            {}
+                                        )
 
                                         st.session_state["logged_in"] = True
                                         st.session_state["year"] = year
@@ -109,8 +156,10 @@ def login():
                                             st.session_state[unit] = course_data.get(unit)
 
                                         st.session_state["course_data"] = course_data
+
                                         st.toast("✅ Login Successful!")
                                         st.rerun()
+
                                     else:
                                         st.error("❌ Invalid password.")
                     else:
@@ -122,6 +171,7 @@ def login():
 
 def logout():
     collection = st.session_state.get("collection")
+
     st.session_state.clear()
 
     if collection is not None:
@@ -149,23 +199,27 @@ def show_sidebar():
             menu_icon="star",
             default_index=0
         )
-        show_advertisement()
-        show_advertisement1()
-        show_advertisement2()
-        show_advertisement()
-        show_advertisement1()
-        show_advertisement2()
-        show_advertisement()
-        show_advertisement1()
-        show_advertisement2()
-        show_advertisement()
-        show_advertisement1()
-        show_advertisement2()
+
+        ads.show_advertisement()
+        ads.show_advertisement1()
+        ads.show_advertisement2()
+
+        ads.show_advertisement()
+        ads.show_advertisement1()
+        ads.show_advertisement2()
+
+        ads.show_advertisement()
+        ads.show_advertisement1()
+        ads.show_advertisement2()
+
+        ads.show_advertisement()
+        ads.show_advertisement1()
+        ads.show_advertisement2()
 
         if st.session_state.get("logged_in", False):
             st.divider()
             st.button("🚪 Logout", on_click=logout, use_container_width=True)
-            show_advertisement()
+            ads.show_advertisement()
 
         return selected
 
@@ -178,12 +232,16 @@ def main():
 
     if selected == "Learn":
         learn_layout()
+
     elif selected == "Study":
         study_materials()
+
     elif selected == "Assignment":
         assignment_materials()
+
     elif selected == "My Performance":
         performance_dashboard()
+
     elif selected == "Save My Progress":
         save_progress()
 
